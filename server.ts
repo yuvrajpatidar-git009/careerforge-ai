@@ -1,6 +1,5 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -30,7 +29,7 @@ async function startServer() {
   }
 
   // API Route for AI Generation
-  app.post("/api/ai/generate", async (req, res) => {
+  app.post("/api/ai/generate", async (req: Request, res: Response) => {
     try {
       const { toolType, payload } = req.body;
       const ai = getGeminiClient();
@@ -70,7 +69,7 @@ async function startServer() {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash", 
         contents: prompt,
         config: {
           systemInstruction: systemInstruction,
@@ -88,6 +87,7 @@ async function startServer() {
 
   // Serve static or Vite dev middleware
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite"); 
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -96,7 +96,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
