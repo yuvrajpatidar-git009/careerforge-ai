@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "PracticalSheet": {
+      "title": "PracticalSheet",
+      "description": "A coding practical sheet consisting of aim, algorithm, source code, and expected output.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "topic": { "type": "string" },
+        "language": { "type": "string" },
+        "title": { "type": "string" },
+        "aim": { "type": "string" },
+        "algorithm": { "type": "array" },
+        "sourceCode": { "type": "string" },
+        "expectedOutput": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "topic", "language", "title", "aim", "algorithm", "sourceCode", "expectedOutput", "difficulty", "created_at", "userId"]
+    }
+  },
+  "firestore": {
+    "/sheets/{sheetId}": {
+      "schema": "PracticalSheet",
+      "description": "Collection of generated practical sheets for user preservation"
+    }
+  }
+}

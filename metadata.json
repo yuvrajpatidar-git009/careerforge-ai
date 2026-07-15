@@ -1,0 +1,6 @@
+{
+  "name": "Quick Practical Note Maker",
+  "description": "Instantly generate beautifully formatted coding Practical Sheets (Aim, Algorithm, Source Code, and Expected Output) for any programming topic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

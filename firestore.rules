@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check valid ID
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper to validate a PracticalSheet
+    function isValidSheet(data) {
+      return data.keys().hasAll(['id', 'topic', 'language', 'title', 'aim', 'algorithm', 'sourceCode', 'expectedOutput', 'difficulty', 'created_at', 'userId'])
+        && data.keys().size() == 11
+        && data.id is string
+        && data.topic is string
+        && data.language is string
+        && data.title is string
+        && data.aim is string
+        && data.algorithm is list
+        && data.sourceCode is string
+        && data.expectedOutput is string
+        && data.difficulty in ['Beginner', 'Intermediate', 'Advanced']
+        && data.created_at is string
+        && data.userId is string;
+    }
+
+    match /sheets/{sheetId} {
+      allow read: if true;
+      allow create: if isValidId(sheetId) && isValidSheet(request.resource.data);
+      allow update: if isValidId(sheetId) && isValidSheet(request.resource.data);
+      allow delete: if isValidId(sheetId);
+    }
+  }
+}
