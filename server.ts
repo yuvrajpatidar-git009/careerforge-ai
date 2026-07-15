@@ -1,168 +1,92 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { GoogleGenAI, Type } from "@google/genai";
-import { generateDynamicMockSheet } from "./src/mockData";
-import { GenerationRequest, GenerationResponse, PracticalSheet } from "./src/types";
 
-// Load environment variables
 dotenv.config();
 
-const app = express();
-const PORT = 3000;
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
 
-app.use(express.json());
+  app.use(express.json());
 
-// Initialize Gemini SDK if available
-const apiKey = process.env.GEMINI_API_KEY;
-const isApiKeyValid = apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim() !== "";
-
-let ai: GoogleGenAI | null = null;
-if (isApiKeyValid) {
-  try {
-    ai = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-    console.log("Gemini API initialized successfully.");
-  } catch (err) {
-    console.error("Failed to initialize Gemini API:", err);
-  }
-} else {
-  console.log("No valid Gemini API key found. Using Mock AI service by default.");
-}
-
-// API Routes
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", geminiActive: !!ai });
-});
-
-app.post("/api/generate", async (req, res) => {
-  const { topic, language, difficulty = 'Intermediate', customAim = '', useMock = false } = req.body as GenerationRequest;
-
-  if (!topic || !language) {
-    return res.status(400).json({
-      success: false,
-      error: "Topic and Language are required fields.",
-      isMocked: true
-    });
-  }
-
-  // 1. Force Mock if requested or if Gemini is not initialized
-  if (useMock || !ai) {
-    try {
-      const sheet = generateDynamicMockSheet(topic, language, difficulty, customAim);
-      return res.json({
-        success: true,
-        sheet,
-        isMocked: true
-      });
-    } catch (err: any) {
-      return res.status(500).json({
-        success: false,
-        error: `Mock generation failed: ${err.message}`,
-        isMocked: true
-      });
-    }
-  }
-
-  // 2. Real Gemini Generation
-  try {
-    console.log(`Generating practical sheet via Gemini for: ${topic} in ${language}`);
-    const prompt = `You are an expert college computer science professor and practical lab examiner. 
-Generate a comprehensive, high-quality practical sheet on the topic "${topic}" using the programming language "${language}".
-The target difficulty level is "${difficulty}".
-${customAim ? `The custom aim is: "${customAim}".` : ""}
-
-Respond with a strictly formatted JSON object matching the following TypeScript schema:
-{
-  "title": "A precise, specific, and professional name of the practical (e.g. 'Binary Search Implementation' or 'Matrix Multiplication using Pointers')",
-  "aim": "A formal academic Aim statement starting with 'To implement...', 'To design...', or 'To write a program to...'",
-  "algorithm": [
-    "Step-by-step algorithmic procedure. Give a detailed multi-step layout of how the code runs.",
-    "Each item in this array should be a single logical step."
-  ],
-  "sourceCode": "A completely working, clean, well-commented code snippet. No truncated code. Must handle all edge cases correctly.",
-  "expectedOutput": "The exact console text that is printed when running this source code. Make it look professional and neat."
-}`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: "Professional title for this practical sheet" },
-            aim: { type: Type.STRING, description: "Formal laboratory practical aim" },
-            algorithm: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Sequence of numbered or standard steps to achieve the goal"
-            },
-            sourceCode: { type: Type.STRING, description: "Fully working code sample with comments" },
-            expectedOutput: { type: Type.STRING, description: "Exactly what printing this code to standard output yields" }
+  // Initialize Gemini client lazily or safely
+  let aiClient: GoogleGenAI | null = null;
+  function getGeminiClient() {
+    if (!aiClient) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      aiClient = new GoogleGenAI({
+        apiKey: apiKey || "MOCK_KEY",
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
           },
-          required: ["title", "aim", "algorithm", "sourceCode", "expectedOutput"]
         },
-        temperature: 0.2,
-      }
-    });
-
-    const jsonText = response.text ? response.text.trim() : "";
-    if (!jsonText) {
-      throw new Error("Received empty text response from Gemini");
-    }
-
-    const parsed = JSON.parse(jsonText);
-    const sheet: PracticalSheet = {
-      id: `sheet_${Math.random().toString(36).substring(2, 9)}`,
-      topic,
-      language,
-      title: parsed.title || `${topic} Practical`,
-      aim: parsed.aim || `To write a program to demonstrate ${topic}`,
-      algorithm: parsed.algorithm || ["Start.", "Perform operation.", "End."],
-      sourceCode: parsed.sourceCode || "",
-      expectedOutput: parsed.expectedOutput || "",
-      difficulty,
-      created_at: new Date().toISOString()
-    };
-
-    return res.json({
-      success: true,
-      sheet,
-      isMocked: false
-    });
-
-  } catch (err: any) {
-    console.error("Gemini generation failed, falling back to dynamic mock generator:", err);
-    // Graceful fallback to Mock Generator
-    try {
-      const sheet = generateDynamicMockSheet(topic, language, difficulty, customAim);
-      return res.json({
-        success: true,
-        sheet,
-        isMocked: true,
-        warning: "Gemini API request failed or was rate limited; dynamically generated a precise lab sheet fallback."
-      });
-    } catch (fallbackErr: any) {
-      return res.status(500).json({
-        success: false,
-        error: `Both Gemini and fallback generator failed: ${err.message}`,
-        isMocked: true
       });
     }
+    return aiClient;
   }
-});
 
-// Configure Vite middleware and start
-async function start() {
+  // API Route for AI Generation
+  app.post("/api/ai/generate", async (req, res) => {
+    try {
+      const { toolType, payload } = req.body;
+      const ai = getGeminiClient();
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(400).json({
+          error: "Gemini API key is not configured in Secrets settings. Please configure GEMINI_API_KEY under Settings > Secrets in the AI Studio UI to enable this AI generation tool.",
+        });
+      }
+
+      let systemInstruction = "";
+      let prompt = "";
+
+      switch (toolType) {
+        case "resume":
+          systemInstruction = "You are an expert ATS resume writer and executive career coach. Generate a professional, highly polished, ATS-optimized resume in clean Markdown format based on the user's details. Organize with clear headers: Professional Summary, Key Skills, Work Experience (with bullet points starting with strong action verbs), Education, and Projects. Use clear, realistic descriptions with zero boilerplate statements.";
+          prompt = `Create a professional resume for:\nName: ${payload.name}\nTarget Role: ${payload.role}\nSkills: ${payload.skills}\nExperience: ${payload.experience}\nEducation: ${payload.education}`;
+          break;
+        case "portfolio":
+          systemInstruction = "You are a creative UI/UX designer and web developer. Generate an impressive portfolio architecture and copy guide in clear Markdown format. Provide layout sections, interactive component suggestions, and captivating self-introduction copy tailored to the user's profile and projects.";
+          prompt = `Design a developer portfolio architecture for:\nName: ${payload.name}\nTitle: ${payload.title}\nAbout: ${payload.about}\nFeatured Projects: ${payload.projects}\nPrimary Tech Stack: ${payload.techStack}`;
+          break;
+        case "linkedin":
+          systemInstruction = "You are a high-level corporate headhunter and personal branding expert. Optimize the user's LinkedIn profile. Generate a compelling, hook-driven 'About' summary, advice on writing an attention-grabbing Headline, and templates for job descriptions that stand out. Format the output with clear sections in Markdown.";
+          prompt = `Optimize LinkedIn presence for:\nName: ${payload.name}\nCurrent Role: ${payload.currentRole}\nTarget Industry: ${payload.targetIndustry}\nCore Accomplishments: ${payload.accomplishments}\nInterests/Style: ${payload.style}`;
+          break;
+        case "readme":
+          systemInstruction = "You are a senior software architect and open-source advocate. Generate a production-grade, comprehensive, and beautiful GitHub repository README.md. Use badges, clear install instructions, usage code blocks, and professional architecture descriptions. Format in clean, elegant Markdown.";
+          prompt = `Generate a README.md for:\nProject Name: ${payload.projectName}\nDescription: ${payload.description}\nTech Stack: ${payload.techStack}\nKey Features: ${payload.features}\nInstallation & Usage: ${payload.installation}`;
+          break;
+        case "coverletter":
+          systemInstruction = "You are a persuasive executive copywriter and recruiter. Write a tailored, high-impact Cover Letter in professional business letter format. Ensure a powerful opening, a persuasive middle detailing why the applicant is a perfect fit, and a proactive call to action closing. Output in Markdown format.";
+          prompt = `Write a Cover Letter for:\nApplicant: ${payload.name}\nTarget Role: ${payload.role}\nCompany: ${payload.company}\nJob Description Key Requirements: ${payload.jobRequirements}\nMy Relevant Experience/Skills: ${payload.relevantExperience}`;
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid tool type requested." });
+      }
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: systemInstruction,
+          temperature: 0.7,
+        },
+      });
+
+      const text = response.text || "No response received from Gemini.";
+      res.json({ result: text });
+    } catch (error: any) {
+      console.error("Gemini Generation Error:", error);
+      res.status(500).json({ error: error.message || "An unexpected error occurred during generation." });
+    }
+  });
+
+  // Serve static or Vite dev middleware
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -170,10 +94,10 @@ async function start() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
@@ -182,4 +106,4 @@ async function start() {
   });
 }
 
-start();
+startServer();
