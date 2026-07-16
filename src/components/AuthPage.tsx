@@ -3,53 +3,114 @@ import { Sparkles, ArrowLeft, Mail, Lock, CheckCircle2, AlertCircle } from "luci
 import { motion } from "motion/react";
 import { AppView, User } from "../types";
 
+// Firebase Auth ke zaroori tools import karein
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from "firebase/auth";
+
+// Firebase ko initialize karne ka setup
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "PASTE_YOUR_API_KEY_HERE",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
+};
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+
 interface AuthPageProps {
   setView: (view: AppView) => void;
   onLoginSuccess: (user: User) => void;
 }
 
 export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
-  // Pre-populate with user email from workspace metadata for delightful quick-testing!
   const [email, setEmail] = useState("patidaryuvraj431@gmail.com");
-  const [password, setPassword] = useState("••••••••");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("Yuvraj");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 1. REAL EMAIL & PASSWORD LOGIN LOGIC
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    if (!email) {
-      setError("Please enter an email address.");
+    if (!email || !password) {
+      setError("Please fill in all fields.");
       setLoading(false);
       return;
     }
 
-    setTimeout(() => {
+    try {
+      let userCredential;
+      if (isSignUp) {
+        // Naya account banane ke liye
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        // Sahi Email aur Password check karne ke liye
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      }
+
+      const firebaseUser = userCredential.user;
+
       onLoginSuccess({
-        name: isSignUp ? name : "Yuvraj",
-        email: email,
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
+        name: firebaseUser.displayName || name || "Yuvraj",
+        email: firebaseUser.email || email,
+        avatar: firebaseUser.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
       });
       setView("dashboard");
+    } catch (err: any) {
+      // Agar password ya email galat hoga toh ye error handle karega
+      if (err.code === "auth/wrong-password" || err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
+        setError("Galat Email ya Password! Kripya dobara check karein.");
+      } else if (err.code === "auth/email-already-in-use") {
+        setError("Yeh email address pehle se register hai.");
+      } else if (err.code === "auth/weak-password") {
+        setError("Password kam se kam 6 characters ka hona chahiye.");
+      } else {
+        setError("Authentication fail ho gayi. Kripya dobara koshish karein.");
+      }
+    } finally {
       setLoading(false);
-    }, 850);
+    }
   };
 
-  const handleGoogleSignIn = () => {
+  // 2. REAL GOOGLE SIGN-IN WITH ACCOUNT SELECTION SCREEN
+  const handleGoogleSignIn = async () => {
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      const provider = new GoogleAuthProvider();
+      
+      // 👇 Yeh line Google ko bolegi ki har baar ACCOUNTS KI SCREEN (Select Account) dikhaye!
+      provider.setCustomParameters({ prompt: "select_account" });
+      
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
       onLoginSuccess({
-        name: "Yuvraj",
-        email: "patidaryuvraj431@gmail.com",
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
+        name: firebaseUser.displayName || "Yuvraj",
+        email: firebaseUser.email || "patidaryuvraj431@gmail.com",
+        avatar: firebaseUser.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
       });
       setView("dashboard");
+    } catch (err: any) {
+      if (err.code !== "auth/popup-closed-by-user") {
+        setError("Google Sign-In fail ho gaya.");
+      }
+    } finally {
       setLoading(false);
-    }, 700);
+    }
   };
 
   return (
@@ -57,12 +118,9 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
       
       {/* LEFT SIDE: BRANDING & VALUE PROP */}
       <div className="hidden lg:flex lg:col-span-5 bg-gradient-to-tr from-slate-950 via-slate-900 to-slate-950 p-12 flex-col justify-between relative overflow-hidden border-r border-white/10">
-        
-        {/* Ambient floating circles */}
         <div className="absolute top-[-20%] left-[-20%] w-[350px] h-[350px] rounded-full bg-indigo-500/10 blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-cyan-500/10 blur-[120px]" />
 
-        {/* Logo and Back Button */}
         <div className="flex items-center justify-between z-10">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setView("landing")}>
             <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-500 rounded-lg flex items-center justify-center">
@@ -82,7 +140,6 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
           </button>
         </div>
 
-        {/* Testimonials / Benefits cards */}
         <div className="space-y-8 my-auto z-10">
           <div className="space-y-3">
             <h2 className="font-display text-4xl font-bold leading-[1.1] tracking-tight text-white">
@@ -117,7 +174,6 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
           </div>
         </div>
 
-        {/* Micro footer */}
         <div className="text-[10px] text-slate-500 z-10 font-mono tracking-widest uppercase">
           Secure Access AES-256 JWT
         </div>
@@ -125,8 +181,6 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
 
       {/* RIGHT SIDE: AUTH FORM */}
       <div className="col-span-1 lg:col-span-7 flex flex-col justify-center p-8 sm:p-16 relative z-10">
-        
-        {/* Small Back Button on Mobile */}
         <button 
           onClick={() => setView("landing")}
           className="lg:hidden absolute top-6 left-6 flex items-center space-x-1 text-xs font-semibold text-slate-500"
@@ -152,15 +206,13 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-900/30 text-rose-400 text-xs flex items-start space-x-2 animate-shake">
+            <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-900/30 text-rose-400 text-xs flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             {isSignUp && (
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-tighter">Name</label>
@@ -220,26 +272,23 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <span>{isSignUp ? "Continue" : "Continue"}</span>
+                <span>Continue</span>
               )}
             </button>
           </form>
 
-          {/* Divider */}
           <div className="relative flex items-center py-2">
             <div className="flex-grow border-t border-white/10"></div>
             <span className="flex-shrink mx-4 text-slate-500 text-xs bg-slate-950 font-mono px-2 tracking-widest">OR</span>
             <div className="flex-grow border-t border-white/10"></div>
           </div>
 
-          {/* Google Button */}
           <button 
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
             className="w-full h-11 rounded-full bg-white text-slate-950 hover:bg-slate-200 transition-colors flex items-center justify-center space-x-2.5 font-bold text-sm cursor-pointer"
           >
-            {/* Google Icon Vector */}
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="currentColor"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="currentColor"/>
@@ -252,11 +301,8 @@ export default function AuthPage({ setView, onLoginSuccess }: AuthPageProps) {
           <div className="text-[11px] text-slate-500 text-center leading-normal">
             By signing in, you agree to our <span className="underline cursor-pointer">Terms</span> and <span className="underline cursor-pointer">Privacy</span>.
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }
