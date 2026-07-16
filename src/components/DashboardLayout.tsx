@@ -60,43 +60,43 @@ export default function DashboardLayout({ user, setView, onLogout, theme, toggle
 
   // Input states for each tool
   const [resumeForm, setResumeForm] = useState<ResumePayload>({
-    name: "Yuvraj Patidar",
-    role: "Full-Stack Developer",
-    skills: "React, TypeScript, Node.js, Tailwind CSS, PostgreSQL, Docker, Git",
-    experience: "Software Engineer Intern at TechCorp (4 months) - Optimized SQL queries, built 10+ reusable UI components.\nFreelance Web Developer - Crafted responsive Next.js and Vite sites for 5 client businesses.",
-    education: "B.S. in Computer Science, University of Technology (Graduating 2027)"
+    name: "",
+    role: "",
+    skills: "",
+    experience: "",
+    education: ""
   });
 
   const [portfolioForm, setPortfolioForm] = useState<PortfolioPayload>({
-    name: "Yuvraj Patidar",
-    title: "Full-Stack Software Engineer & open-source enthusiast",
-    about: "Passionate about crafting pixel-perfect web experiences, optimizing server latency, and designing lightweight full-stack architectures.",
-    projects: "TaskSync - Real-time task manager with web socket sync.\nDevNotes - Markdown scratchpad extension built using Vite.",
-    techStack: "React, Express, TailwindCSS, Drizzle ORM, SQLite"
+    name: "",
+    title: "",
+    about: "",
+    projects: "",
+    techStack: ""
   });
 
   const [linkedinForm, setLinkedinForm] = useState<LinkedinPayload>({
-    name: "Yuvraj Patidar",
-    currentRole: "CS Student & Aspiring Full-Stack Engineer",
-    targetIndustry: "SaaS & AI Platforms",
-    accomplishments: "Built an open-source task scheduling manager with 200+ stars.\nSecured top 5% in competitive programming at University TechCup.",
+    name: "",
+    currentRole: "",
+    targetIndustry: "",
+    accomplishments: "",
     style: "creative"
   });
 
   const [readmeForm, setReadmeForm] = useState<ReadmePayload>({
-    projectName: "CareerForge-AI",
-    description: "An AI-powered SaaS career development platform helping students and developers build resumes, portfolios, and LinkedIn profiles using high-performance server-side Gemini models.",
-    techStack: "Vite, React 19, Express, TypeScript, Tailwind CSS v4, Motion",
-    features: "Dynamic full-stack AI generation, collapsible responsive workspace, light/dark theme toggle, glassmorphism dashboard.",
-    installation: "npm install\ncp .env.example .env\nnpm run dev"
+    projectName: "",
+    description: "",
+    techStack: "",
+    features: "",
+    installation: ""
   });
 
   const [coverLetterForm, setCoverLetterForm] = useState<CoverLetterPayload>({
-    name: "Yuvraj Patidar",
-    role: "Junior Full-Stack Developer",
-    company: "Vercel",
-    jobRequirements: "Strong proficiency in TypeScript, React, server-side rendering architectures, and clean styling integrations.",
-    relevantExperience: "Built multiple full-stack React application prototypes connected to server proxies, utilizing highly responsive glassmorphic layouts and automated builds."
+    name: "",
+    role: "",
+    company: "",
+    jobRequirements: "",
+    relevantExperience: ""
   });
 
   // Notifications mock
